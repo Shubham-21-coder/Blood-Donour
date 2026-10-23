@@ -1,0 +1,82 @@
+{
+  "city": "Jaipur, Rajasthan, India",
+  "disclaimer": "SYNTHETIC DEMO DATA ONLY — DO NOT USE FOR CLINICAL PURPOSES",
+  "facilities": [
+    {
+      "id": "stock-jpr-001",
+      "name": "SMS Hospital State Blood Bank",
+      "address": "JLN Marg, Ashok Nagar, Jaipur",
+      "latitude": 26.8973,
+      "longitude": 75.8167,
+      "phone": "+91 141 2560291",
+      "stock": {
+        "O+": 2,
+        "O-": 0,
+        "A+": 6,
+        "A-": 1,
+        "B+": 7,
+        "B-": 2,
+        "AB+": 4,
+        "AB-": 0
+      },
+      "last_updated": "2026-10-23 17:30 UTC"
+    },
+    {
+      "id": "stock-jpr-002",
+      "name": "Santokba Durlabhji Blood Center",
+      "address": "Bhawani Singh Road, Jaipur",
+      "latitude": 26.8943,
+      "longitude": 75.8075,
+      "phone": "+91 141 2566251",
+      "stock": {
+        "O+": 1,
+        "O-": 1,
+        "A+": 4,
+        "A-": 0,
+        "B+": 5,
+        "B-": 1,
+        "AB+": 3,
+        "AB-": 1
+      },
+      "last_updated": "2026-10-23 18:00 UTC"
+    },
+    {
+      "id": "stock-jpr-003",
+      "name": "Fortis Escorts Blood Bank",
+      "address": "JLN Marg, Malviya Nagar, Jaipur",
+      "latitude": 26.8488,
+      "longitude": 75.8037,
+      "phone": "+91 141 2547000",
+      "stock": {
+        "O+": 1,
+        "O-": 0,
+        "A+": 5,
+        "A-": 1,
+        "B+": 6,
+        "B-": 0,
+        "AB+": 2,
+        "AB-": 0
+      },
+      "last_updated": "2026-10-23 17:15 UTC"
+    },
+    {
+      "id": "stock-jpr-004",
+      "name": "Jaipur Rotary Club Blood Center",
+      "address": "Bapu Nagar, Jaipur",
+      "latitude": 26.8850,
+      "longitude": 75.8120,
+      "phone": "+91 141 2701100",
+      "stock": {
+        "O+": 4,
+        "O-": 2,
+        "A+": 7,
+        "A-": 2,
+        "B+": 9,
+        "B-": 3,
+        "AB+": 4,
+        "AB-": 1
+      },
+      "last_updated": "2026-10-23 18:10 UTC"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+# Core Agent Framework
+uagents==0.26.1
+uagents-core==0.4.12
+cosmpy==0.12.2
+
+# Data Validation & Typing
+pydantic==2.14.1
+pydantic-core==2.50.1
+
+# HTTP & Reliability
+httpx==0.28.1
+tenacity==9.2.1
+python-dotenv==1.2.4
+
+# Testing
+pytest==9.1.1
+pytest-asyncio==1.4.0
