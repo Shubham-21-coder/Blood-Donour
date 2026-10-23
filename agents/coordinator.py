@@ -352,7 +352,7 @@ async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
     ctx.logger.info(f"Replied to {sender} with state: {result.get('state')}")
 
 
-coordinator_agent.include(chat_protocol)
+coordinator_agent.include(chat_protocol, publish_manifest=True)
 
 
 @coordinator_agent.on_event("startup")
