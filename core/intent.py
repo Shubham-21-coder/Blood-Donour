@@ -53,27 +53,22 @@ def parse_intent_deterministic(text: str) -> BloodRequestIntent:
     
     # 1. Blood type extraction
     blood_type = None
-    # Check Hindi phrases
     for hi_phrase, b_type in HINDI_BLOOD_MAPPING.items():
         if hi_phrase in text:
             blood_type = b_type
             break
 
     if not blood_type:
-        # Check standard regex for blood type: O+, O-, A+, A-, B+, B-, AB+, AB-
-        # Handles: "O+", "O positive", "O-ve", "AB negative", "b+"
         match = re.search(r'\b(ab|a|b|o)\s*(\+|\-|\+\s*ve|\-\s*ve|positive|negative|pos|neg)\b', lower)
         if match:
             blood_type = normalize_blood_type(match.group(0))
         else:
-            # Standalone e.g. "O+" or "B+"
             standalone = re.search(r'\b(A|B|AB|O)[\+\-]', text, re.IGNORECASE)
             if standalone:
                 blood_type = normalize_blood_type(standalone.group(0))
 
     # 2. Units extraction (1 to 10)
     units = None
-    # Check Hindi numbers
     for word, val in HINDI_NUMBERS.items():
         if word in text:
             units = val
@@ -82,7 +77,6 @@ def parse_intent_deterministic(text: str) -> BloodRequestIntent:
     if units is None:
         unit_match = re.search(r'\b([1-9]|10)\s*(?:unit|units|bottle|bottles|bag|bags|यूनिट)?\b', lower)
         if unit_match:
-            # Avoid matching street numbers or hospital numbers
             try:
                 candidate = int(unit_match.group(1))
                 if 1 <= candidate <= 10:
@@ -90,7 +84,6 @@ def parse_intent_deterministic(text: str) -> BloodRequestIntent:
             except ValueError:
                 pass
 
-    # Default to 1 unit if units not specified but text says "need blood"
     if units is None:
         if "unit" in lower or "यूनिट" in text:
             single = re.search(r'\b(\d+)\s*(?:unit|यूनिट)', text, re.IGNORECASE)
@@ -113,7 +106,6 @@ def parse_intent_deterministic(text: str) -> BloodRequestIntent:
 
     # 4. Hospital & Location extraction
     hospital = None
-    # Common demo hospital patterns
     hosp_match = re.search(r'(?:at|in|hospital|अस्पताल)\s+([A-Za-z0-9\.\s]+?(?:hospital|clinic|center|centre|अस्पताल))', text, re.IGNORECASE)
     if hosp_match:
         hospital = hosp_match.group(1).strip()
@@ -126,7 +118,6 @@ def parse_intent_deterministic(text: str) -> BloodRequestIntent:
     elif "narayana" in lower:
         hospital = "Narayana Multispeciality Hospital, Jaipur"
     elif "hospital" in lower or "अस्पताल" in text:
-        # Extract general words around hospital
         m = re.search(r'([A-Za-z\s]+hospital)', text, re.IGNORECASE)
         if m:
             hospital = m.group(1).strip().title()
@@ -135,8 +126,6 @@ def parse_intent_deterministic(text: str) -> BloodRequestIntent:
     if "jaipur" in lower or "जयपुर" in text:
         city = "Jaipur"
 
-    # Default hospital if city is Jaipur and hospital not mentioned
-    # We check missing fields
     missing = []
     if not blood_type:
         missing.append("blood_type")
@@ -179,9 +168,12 @@ def parse_intent_deterministic(text: str) -> BloodRequestIntent:
 
 async def parse_blood_request(text: str, llm_client: Optional[LLMClient] = None) -> BloodRequestIntent:
     """
-    Primary intent parser. Uses LLM if available, otherwise deterministic parser.
+    Primary intent parser. Uses ASI:One LLM if available, otherwise deterministic parser.
     Ensures strict validation according to F1, F2, F3, F4.
     """
+    if llm_client is None:
+        llm_client = LLMClient()
+
     # 1. Deterministic extraction first for reliable grounding
     parsed = parse_intent_deterministic(text)
 
@@ -189,21 +181,31 @@ async def parse_blood_request(text: str, llm_client: Optional[LLMClient] = None)
     if not parsed.missing_fields and parsed.blood_type and parsed.units:
         return parsed
 
-    # 3. If LLM client is configured, enhance parsing
+    # 3. If ASI:One LLM client is configured, enhance parsing without inventing missing units
     if llm_client and llm_client.is_configured:
         prompt = (
             f"Extract emergency blood request fields from: \"{text}\"\n"
-            "Return valid JSON with keys: blood_type (e.g. O+, A-), units (integer 1-10), "
-            "urgency (CRITICAL, URGENT, NORMAL), hospital (string), city (string), language ('en' or 'hi')."
+            "Return valid JSON with keys: blood_type (e.g. O+, A-), units (integer 1-10, or null if not explicitly stated in the text), "
+            "urgency (CRITICAL, URGENT, NORMAL), hospital (string), city (string), language ('en' or 'hi').\n"
+            "CRITICAL: If the user did not specify the number of units, set units to null. Do not invent units."
         )
         try:
-            resp = await llm_client.complete(prompt, system_prompt="You are a medical dispatch parsing engine. Return only JSON.")
+            resp = await llm_client.complete(
+                prompt,
+                system_prompt="You are a medical dispatch parsing engine. Return only JSON format without markdown ticks."
+            )
             if resp:
                 data = json.loads(re.search(r'\{.*\}', resp, re.DOTALL).group(0))
                 bt = normalize_blood_type(data.get("blood_type"))
                 u = data.get("units")
-                if u and isinstance(u, int) and 1 <= u <= 10:
+                
+                # Only accept units if user text has a number or unit keyword
+                has_number_in_text = bool(re.search(r'\b([1-9]|10)\b', text)) or any(w in text for w in HINDI_NUMBERS)
+                if u and isinstance(u, int) and 1 <= u <= 10 and has_number_in_text:
                     parsed.units = u
+                elif not has_number_in_text:
+                    parsed.units = None
+
                 if bt:
                     parsed.blood_type = bt
                 if data.get("hospital"):

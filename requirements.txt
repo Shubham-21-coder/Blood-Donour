@@ -3,6 +3,9 @@ uagents==0.26.1
 uagents-core==0.4.12
 cosmpy==0.12.2
 
+# LLM & OpenAI Compatibility (ASI:One)
+openai>=1.50.0
+
 # Data Validation & Typing
 pydantic==2.14.1
 pydantic-core==2.50.1

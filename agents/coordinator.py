@@ -1,7 +1,7 @@
 """
 LifeLink: Coordinator Agent (uAgent)
 The primary agent exposed to ASI:One.
-Implements Agent Chat Protocol (ACP), intent parsing, multi-agent orchestration,
+Implements Agent Chat Protocol (ACP), intent parsing via ASI:One LLM, multi-agent orchestration,
 card rendering with plain-text fallbacks, and stateful conversation workflows.
 """
 
@@ -11,7 +11,7 @@ import logging
 import asyncio
 from datetime import datetime, timezone
 import uuid
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 
 try:
     loop = asyncio.get_event_loop()
@@ -34,6 +34,7 @@ from core.models import (
     BroadcastAlertRequest, BroadcastAlertStatus,
     MaskedContactRequest, MaskedContactResponse
 )
+from core.llm import LLMClient
 from core.intent import parse_blood_request
 from core.cards import (
     build_donor_carousel_card,
@@ -53,7 +54,7 @@ COORDINATOR_SEED = os.getenv("COORDINATOR_SEED", "lifelink_coordinator_agent_see
 COORDINATOR_PORT = int(os.getenv("COORDINATOR_PORT", "8001"))
 DEMO_CITY = os.getenv("DEMO_CITY", "Jaipur, Rajasthan, India")
 
-# Initialize Coordinator Agent
+# Initialize Coordinator Agent (preserves seed, address, and ACP)
 coordinator_agent = Agent(
     name="lifelink_coordinator",
     port=COORDINATOR_PORT,
@@ -61,11 +62,13 @@ coordinator_agent = Agent(
     endpoint=[f"http://127.0.0.1:{COORDINATOR_PORT}/submit"]
 )
 
-# Chat Protocol Specification
+# Chat Protocol Specification (ACP v0.3.0)
 chat_protocol = Protocol(name="AgentChatProtocol", version="0.3.0")
 
+# LLM Client connected to official ASI:One API
+llm_client = LLMClient()
+
 # Session state store
-# session_id -> { "state": ..., "intent": ..., "matched_donors": ..., "facilities": ... }
 SESSIONS: Dict[str, Dict[str, Any]] = {}
 
 
@@ -104,7 +107,6 @@ async def orchestrate_inventory_and_donors(intent: BloodRequestIntent) -> Tuple[
     # 2. Donor match query
     matched_donors = []
     try:
-        # Compute matching from donor outreach logic
         from core.compatibility import get_compatible_donor_types
         from core.eligibility import is_donor_eligible
         from core.ranking import rank_donors
@@ -143,7 +145,7 @@ async def orchestrate_inventory_and_donors(intent: BloodRequestIntent) -> Tuple[
 async def process_user_turn(session_id: str, user_text: str) -> Dict[str, Any]:
     """
     Core conversational state machine processing user turns.
-    Returns generated responses, cards, and fallbacks.
+    Integrates ASI:One LLM for intent understanding and conversational grounding.
     """
     session = get_or_create_session(session_id)
     state = session.get("state", "IDLE")
@@ -223,15 +225,13 @@ async def process_user_turn(session_id: str, user_text: str) -> Dict[str, Any]:
                 "confirmed_donor": active_donor_summary
             }
         else:
-            # User wants to modify or cancel
             if "cancel" in lower:
                 session["state"] = "IDLE"
                 return {"text": "Broadcast cancelled. Let me know if you need any other assistance.", "state": "IDLE"}
-            # Otherwise re-parse text for adjustments
             state = "IDLE"
 
-    # Default / IDLE state: Parse user blood request
-    parsed_intent = await parse_blood_request(user_text)
+    # Parse user blood request using ASI:One LLM (with deterministic fallback)
+    parsed_intent = await parse_blood_request(user_text, llm_client=llm_client)
     
     # If prior intent existed, merge missing fields
     if session.get("intent"):
@@ -334,7 +334,7 @@ async def handle_chat_message(ctx: Context, sender: str, msg: ChatMessage):
     user_text = user_text.strip()
     ctx.logger.info(f"Received user text: '{user_text}'")
 
-    # 3. Process turn via conversation engine
+    # 3. Process turn via conversation engine with ASI:One LLM
     session_id = str(sender)
     result = await process_user_turn(session_id, user_text)
 
@@ -361,7 +361,7 @@ async def startup_handler(ctx: Context):
     ctx.logger.info(f"LifeLink Coordinator Agent online!")
     ctx.logger.info(f"Address: {coordinator_agent.address}")
     ctx.logger.info(f"Agent Chat Protocol (ACP) v0.3.0 registered.")
-    ctx.logger.info(f"Ready for ASI:One chat queries.")
+    ctx.logger.info(f"ASI:One LLM Configured: {llm_client.is_configured} (Model: {llm_client.model})")
     ctx.logger.info("=" * 60)
 
 
